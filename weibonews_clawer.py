@@ -33,7 +33,7 @@ class parser(object):
             new_time = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_tm"]/a')[0].text
             new_commentTimes = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_cmt"]/a[1]')[0].text
             new_forwardingTimes = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_cmt"]/a[2]')[0].text
-            print new_text,new_time,new_commentTimes,new_forwardingTimes
+            print new_text.encode("gb18030"),new_time,new_commentTimes,new_forwardingTimes
 #Spider
 class Spider(object):
     #构造函数
