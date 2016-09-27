@@ -37,7 +37,7 @@ def download(url):
     if response.getcode() != 200:
         return None
     return response.read()
-
+    
 #解析html    
 def parse(html_cont):
     if html_cont is None:
@@ -64,6 +64,7 @@ def parse(html_cont):
         #new_commentTimes = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_cmt"]/a[1]')[0].text
         #new_forwardingTimes = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_cmt"]/a[2]')[0].text
         #print new_text.encode("gb18030"),new_time,new_commentTimes,new_forwardingTimes
+
 
 #main函数
 if __name__ == "__main__":
