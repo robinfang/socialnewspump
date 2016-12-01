@@ -8,7 +8,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from datetime import datetime
+from datetime import *
 import re
 
 import sys
@@ -57,11 +57,9 @@ def time_format(new_time):
     time_model3 = datetime.now().strftime('%Y-')
     
     if '今天' in new_time:
-        print 'model1'
         time0 = new_time.split('今天')[-1]
         time0 = time_model1 + time0
     elif '分钟' in new_time:
-        print 'model2'
         time0 = new_time.split('分钟前')[0]
         if int(datetime.now().strftime('%M'))-int(time0)>0:
             time_m = int(datetime.now().strftime('%M'))-int(time0)
@@ -75,7 +73,6 @@ def time_format(new_time):
                 time0 = time_model1 + ' 0' + str(time_h) + ':' +str(time_m)
             time0 = time_model1 + ' ' + str(time_h) + ':' +str(time_m)
     elif "月" in new_time:
-        print 'model3'
         time_mon = new_time.split('月')[0]
         if int(time_mon) < 10:
             time_mon = '0' +time_mon
@@ -98,7 +95,6 @@ def parse(uid0,html_cont,new_urls):
     cursor.execute(insert_sql0,user)
     content_field = dom.xpath('//*[@id="content_all"]/div[@class = "wgtCell"]')
     
-    
     for each in content_field:
         new_text = ' '.join(each.xpath('div[@class = "wgtCell_con"]/p/text()|div[@class = "wgtCell_con"]/p/a/text()'))
         new_text0 = each.xpath('div[@class = "wgtCell_con"]/p')[0].text
@@ -116,7 +112,6 @@ def parse(uid0,html_cont,new_urls):
             #print(new_urls)
             userfans = get_userfans(source_uid)
             user = (str(source_uid),source_nickname,userfans)
-            print user
             insert_sql1 = 'INSERT IGNORE INTO weibouser(uid,username,fans) VALUES (%s,%s,%s)'
             cursor.execute(insert_sql1,user)
             db.commit()
@@ -164,7 +159,6 @@ def craw(enter_url,count):
         print user_count
         if user_count == count:
             break
-    
 
 #main函数
 if __name__ == "__main__":
