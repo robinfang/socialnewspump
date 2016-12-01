@@ -8,8 +8,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from datetime import datetime
 import re
-import time
 
 import sys
 reload(sys)
@@ -51,6 +51,42 @@ def get_dom(html_cont):
         return
     return etree.HTML(html_cont)
 
+def time_format(new_time):
+    time_model1 = datetime.now().strftime('%Y-%m-%d')
+    time_model2 = datetime.now().strftime('%Y-%m-%d %H:')
+    time_model3 = datetime.now().strftime('%Y-')
+    
+    if '今天' in new_time:
+        print 'model1'
+        time0 = new_time.split('今天')[-1]
+        time0 = time_model1 + time0
+    elif '分钟' in new_time:
+        print 'model2'
+        time0 = new_time.split('分钟前')[0]
+        if int(datetime.now().strftime('%M'))-int(time0)>0:
+            time_m = int(datetime.now().strftime('%M'))-int(time0)
+            if time_m < 10:
+                time_m = '0' + str(time_m)
+            time0 = time_model2 + str(time_m)
+        else:
+            time_m = (int(datetime.now().strftime('%M'))-int(time0))%60
+            time_h = int(datetime.now().strftime('%H'))-1
+            if time_h < 10:
+                time0 = time_model1 + ' 0' + str(time_h) + ':' +str(time_m)
+            time0 = time_model1 + ' ' + str(time_h) + ':' +str(time_m)
+    elif "月" in new_time:
+        print 'model3'
+        time_mon = new_time.split('月')[0]
+        if int(time_mon) < 10:
+            time_mon = '0' +time_mon
+        time_day = new_time.split('月')[1].split('日')[0]
+        if int (time_day) < 10:
+            time_day = '0' + time_day
+        tm = new_time.split(' ')[1]
+        
+        time0 = time_model3+time_mon+'-'+time_day+' '+tm
+    return time0
+
 #解析html    
 def parse(uid0,html_cont,new_urls):
     dom = get_dom(html_cont)
@@ -67,10 +103,10 @@ def parse(uid0,html_cont,new_urls):
         new_text = ' '.join(each.xpath('div[@class = "wgtCell_con"]/p/text()|div[@class = "wgtCell_con"]/p/a/text()'))
         new_text0 = each.xpath('div[@class = "wgtCell_con"]/p')[0].text
         pid_href = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[1]/a/@href')[0]
-        pid = pid_href.split('/')[-1]
-        if new_text0 == "转发了":
+        pid = pid_href.split('/')[-1] #微博标识
+        if new_text0 == "转发了":#转发微博
             source_href = each.xpath('div[@class = "wgtCell_con"]/p/a[1]/@href')[0]
-            source_nickname = each.xpath('div[@class = "wgtCell_con"]/p/a[1]/@title')[0]
+            source_nickname = each.xpath('div[@class = "wgtCell_con"]/p/a[1]/@title')[0] 
             if '/u/' in source_href:
                 source_uid = source_href.split('/')[-1]
             else:
@@ -79,7 +115,7 @@ def parse(uid0,html_cont,new_urls):
             new_urls.append(source_url)
             #print(new_urls)
             userfans = get_userfans(source_uid)
-            user = (source_uid,source_nickname,userfans)
+            user = (str(source_uid),source_nickname,userfans)
             print user
             insert_sql1 = 'INSERT IGNORE INTO weibouser(uid,username,fans) VALUES (%s,%s,%s)'
             cursor.execute(insert_sql1,user)
@@ -88,22 +124,22 @@ def parse(uid0,html_cont,new_urls):
             insert_sql3 = 'INSERT IGNORE INTO weiboforwarding(pid,from_uid,to_uid) VALUES (%s,%s,%s)'
             cursor.execute(insert_sql3,forwarding)
             db.commit()
-        new_time = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_tm"]/a')[0].text
-        new_comment_times = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_cmt"]/a[1]')[0].text
-        if len(re.findall(r'\d+',new_comment_times))!=0:
+        new_time = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_tm"]/a')[0].text #微博发布时间
+        time0 = time_format(str(new_time))
+        new_comment_times = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_cmt"]/a[1]')[0].text #微博评论数
+        if len(re.findall(r'\d+',new_comment_times))!=0: #评论数为0的处理
             comment_times = re.findall(r'\d+',new_comment_times)[0]
         else:
             comment_times = 0
-        new_forwarding_times = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_cmt"]/a[2]')[0].text
-        if len(re.findall(r'\d+',new_forwarding_times))!=0:
+        new_forwarding_times = each.xpath('div[@class = "wgtCell_con"]/div[@class = "wgtCell_txtBot"]/span[@class = "wgtCell_cmt"]/a[2]')[0].text #微博转发数
+        if len(re.findall(r'\d+',new_forwarding_times))!=0: #转发数为0的处理
             forwarding_times = re.findall(r'\d+',new_forwarding_times)[0]
         else:
             forwarding_times = 0
-        post = (pid,uid0,new_text.encode('utf-8'),new_time,comment_times,forwarding_times)
+        post = (pid,uid0,new_text.encode('utf-8'),time0,comment_times,forwarding_times)
         insert_sql2 =  'INSERT IGNORE INTO weibopost(pid,uid,text,time,forwarding_times,comment_times) VALUES (%s,%s,%s,%s,%s,%s)'
         cursor.execute(insert_sql2,post)
         db.commit()
-        time.sleep(2)
     return new_urls
         #print pid,uid0[0],new_text.encode("gb18030"),new_time,new_comment_times,comment_times,new_forwarding_times,forwarding_times
 
@@ -124,11 +160,10 @@ def craw(enter_url,count):
         html_cont = download(new_url)
         #解析html，得到微博数据
         user = parse(uid0,html_cont,new_urls)
-        
+        user_count = user_count + 1
         print user_count
         if user_count == count:
             break
-        user_count = user_count + 1
     
 
 #main函数
@@ -141,5 +176,5 @@ if __name__ == "__main__":
     uid = '3217179555'
     #爬虫入口url
     enter_url = "http://service.weibo.com/widget/widget_blog.php?uid=%s&height=1700&skin=wd_01&showpic=1" % (uid)
-    count = 5 #爬取微博用户的数量
+    count = 10 #爬取微博用户的数量
     craw(enter_url, count)
