@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 #encoding:utf-8
-import os
 import urllib2
 import MySQLdb
 from lxml import etree
@@ -22,26 +21,28 @@ def download(page_url):
         return None
     req = urllib2.Request(page_url)
     req.add_header("User-Agent","Mozilla/5.0 (Windows NT 6.1; rv:21.0) Gecko/20100101 Firefox/21.0")
-    response = urllib2.urlopen(req)
-    #获取失败
-    if response.getcode() != 200:
-        return None
+    while 1:
+        try:
+            response = urllib2.urlopen(req)
+            break
+        except urllib2.HTTPError,e:
+            print e.code
     return response.read()
     
 #用户名转uid处理
-def nickname_to_uid(nickname,driver):
+def nickname_to_uid(nickname):
     search_url = "http://s.weibo.com/user/%s"%nickname
     driver.get(search_url)
-    WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.XPATH, '//*[@id="pl_user_noResult"]')))
+    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, '//*[@id="pl_common_bottomInput"]')))
     warning = driver.find_element_by_xpath('//*[@id="pl_user_noResult"]').text
-    print "warning:"+warning
+    #处理查询无结果的情况
     if len(warning) != 0:
-        print "1------"
         return None
     WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, '//a[@class="W_texta W_fb"]')))
     uid = driver.find_elements_by_xpath('//a[@class="W_texta W_fb"]')[0].get_attribute('uid')
     return uid
 
+#获取粉丝数
 def get_userfans(uid):
     page_url = "http://service.weibo.com/widget/widget_blog.php?uid=%s&height=1700&skin=wd_01&showpic=1" % (uid)
     html_cont =  download(page_url)
@@ -55,6 +56,7 @@ def get_dom(html_cont):
         return
     return etree.HTML(html_cont)
 
+#统一微博发布时间格式
 def time_format(new_time):
     time_model1 = datetime.now().strftime('%Y-%m-%d')
     time_model2 = datetime.now().strftime('%Y-%m-%d %H:')
@@ -67,8 +69,11 @@ def time_format(new_time):
         time0 = new_time.split('分钟前')[0]
         if int(datetime.now().strftime('%M'))-int(time0)>0:
             time_m = int(datetime.now().strftime('%M'))-int(time0)
+            time_h =datetime.now().strftime('%H')
             if time_m < 10:
                 time_m = '0' + str(time_m)
+            if time_h < 10:
+                time0 = time_model1 + ' 0' + str(time_h) + ':' +str(time_m)
             time0 = time_model2 + str(time_m)
         else:
             time_m = (int(datetime.now().strftime('%M'))-int(time0))%60
@@ -87,10 +92,21 @@ def time_format(new_time):
             time_day = '0' + time_day
         tm = new_time.split(' ')[1]
         time0 = time_model3+time_mon+'-'+time_day+' '+tm
+    else:
+        time0 = new_time
+        time_year = new_time.split('-')[0]
+        time_mon = new_time.split('-')[1]
+        if int(time_mon) < 10:
+            time_mon = '0' +time_mon
+        time_day = new_time.split('-')[-1].split(' ')[0]
+        if int (time_day) < 10:
+            time_day = '0' + time_day
+        tm = new_time.split(' ')[1]
+        time0 = time_year + '-' + time_mon + '-' + time_day + ' ' + tm
     return time0
 
 #解析html    
-def parse(uid0,html_cont,new_urls,dirver):
+def parse(uid0,html_cont,new_urls):
     dom = get_dom(html_cont)
     username = dom.xpath('//div[@class="userNm txt_b"]/text()')[0]
     userfans = dom.xpath('//div[@class="userfans"]/a/text()')[0]
@@ -108,18 +124,18 @@ def parse(uid0,html_cont,new_urls,dirver):
         if new_text0 == "转发了":#转发微博
             source_href = each.xpath('div[@class = "wgtCell_con"]/p/a[1]/@href')[0]
             source_nickname = each.xpath('div[@class = "wgtCell_con"]/p/a[1]/@title')[0] 
+            print source_nickname
             if '/u/' in source_href:
                 source_uid = source_href.split('/')[-1].encode('utf-8')
             else:
                 select_sql = 'SELECT uid from weibouser where username = %s'
                 cursor.execute(select_sql,(source_nickname,))
-                have_uid = cursor.fetchone() #用户在数据库已存在
+                have_uid = cursor.fetchone() #检查用户是否在数据库已存在
                 if have_uid != None:
                     source_uid = have_uid[0]
                 elif len(source_nickname)!=0:
-                    source_uid = nickname_to_uid(source_nickname,dirver)
+                    source_uid = nickname_to_uid(source_nickname)
                     if source_uid == None:
-                        print "2------"
                         continue
                 else:
                     continue
@@ -158,7 +174,7 @@ def craw(enter_url):
     old_urls = [] #已爬取的URL集合
     user_count = 0 #已爬取用户数量
     new_urls.append(enter_url)
-    driver = webdriver.Chrome()
+    
     while len(new_urls)!=0: #如果有待爬取的URL
         new_url = new_urls.pop(0)
         print new_url
@@ -169,12 +185,11 @@ def craw(enter_url):
         #下载html页面，下载页面存储在html_cont中
         html_cont = download(new_url)
         #解析html，得到微博数据
-        user = parse(uid0,html_cont,new_urls,driver)
+        user = parse(uid0,html_cont,new_urls)
         user_count = user_count + 1
         print user_count
-        #if user_count == count:
-        #    break
-    driver.close()
+        if user_count == count:
+            break
 
 #main函数
 if __name__ == "__main__":
@@ -186,5 +201,8 @@ if __name__ == "__main__":
     uid = '3217179555'
     #爬虫入口url
     enter_url = "http://service.weibo.com/widget/widget_blog.php?uid=%s&height=1700&skin=wd_01&showpic=1" % (uid)
-    #count = 50 #爬取微博用户的数量
+    count = 50 #爬取微博用户的数量
+    driver = webdriver.Chrome()
     craw(enter_url)
+    driver.close()
+    
